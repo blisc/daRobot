@@ -1,5 +1,5 @@
-    list p=16f877                 ; list directive to define processor
-    #include <p16f877.inc>        ; processor specific variable definitions
+    list p=16f877               ; list directive to define processor
+    #include <p16f877.inc>      ; processor specific variable definitions
     __CONFIG _CP_OFF & _WDT_OFF & _BODEN_ON & _PWRTE_ON & _HS_OSC & _WRT_ENABLE_ON & _CPD_OFF & _LVP_OFF
 
     #include <lcd.inc>			   ;Import LCD control functions from lcd.asm
@@ -66,14 +66,70 @@ Mainline
     call    Line2
     Display MsgLogs
 
-    goto $
+    ;poll until key press
+Poll
+    btfss   PORTB,1
+    goto Poll
 
+    swapf   PORTB,W         ;Puts PORTB7:4 into W3:0
+    andlw   0x0F            ;W: 0000XXXX
+    movwf   H'30'
+    incf    H'30'
+    decfsz  H'30', f        ;decrement working reg, skip next line if 0
+    goto    Check
+    goto    Operation
+;Checks if 2 is pressed
+Check
+    decfsz  H'30', f
+    goto    Release         ;If not 2, wait until button released
+    goto    Logs            ;If 2, display Logs
+;Wait until key is released, then return to Polling
+Release
+    btfsc   PORTB,1
+    goto    $-1
+    goto    Poll
+
+
+;Start the Operation
+Operation
+    call    Clear_LCD
+    call    Line1
+    Display MsgOP
+    call    Line2
+    Display MsgRet
+    goto    TIL
+
+
+;Dispay Logs
+Logs
+    call Clear_LCD
+    call Line1
+    Display MsgLog
+    call    Line2
+    Display MsgRet
+    goto    TIL
+
+;TENTATIVE PLACEHOLDER
+;Return to main menu if 1 is pressed
+TIL
+    btfss   PORTB,1
+    goto    TIL
+    swapf   PORTB,W         ;Puts PORTB7:4 into W3:0
+    andlw   0x0F            ;W: 0000XXXX
+    movwf   H'30'
+    incf    H'30'
+    decfsz  H'30', f        ;decrement working reg, skip next line if 0
+    goto    TIL
+    goto    Mainline
 
 ;Initializes PORTD2:7 as output
 Init
     bsf     STATUS,RP0      ;swtich to bank 1
     clrf    TRISD           ;clears TRISD to set PORTD to output
+    movlw   b'11111111'
+    movwf   TRISB           ;set PORTB to input
     clrf    INTCON          ;removes interrupts
+    bcf     STATUS,RP0      ;bank0
     return
 
 
@@ -106,8 +162,16 @@ Line1
 MsgStart
     addwf	PCL,F
 	dt		"1: Start", 0
-
 MsgLogs
 	addwf	PCL,F
 	dt		"2: Logs", 0
+MsgOP
+    addwf	PCL,F
+	dt		"Running...", 0
+MsgLog
+    addwf	PCL,F
+	dt		"Here be the logs", 0
+MsgRet
+    addwf	PCL,F
+	dt		"1: Return", 0
     end
