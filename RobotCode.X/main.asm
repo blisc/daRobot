@@ -69,6 +69,9 @@ MsgLog
 MsgRet
     addwf	PCL,F
 	dt		"1: Return", 0
+Bin_Debug
+    addwf     PCL,f
+    dt        "0123456789ABCDEF",
 
 ;Display Macro
 Display macro	Message
@@ -119,8 +122,8 @@ CheckMachineState
 Logs
     clrf    Machine_state
     bsf     Machine_state, 2
-    call Clear_LCD
-    call Line1
+    call    Clear_LCD
+    call    Line1
     Display MsgLog
     call    Line2
     Display MsgRet
@@ -221,10 +224,10 @@ ISR_init
 	return
 
 ISR_Key
-	swapf   PORTB,W         ;Puts PORTB7:4 into W3:0
+	swapf    PORTB,W         ;Puts PORTB7:4 into W3:0
     andlw   0x0F            ;W: 0000XXXX
     movwf   H'30'
-    incf    H'30'
+    incf    H'30',f
     decfsz  H'30', f        ;decrement working reg, skip next line if 0
     goto    Check2
     goto    CheckMachineState
