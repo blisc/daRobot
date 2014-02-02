@@ -2,7 +2,10 @@
     #include <p16f877.inc>      ; processor specific variable definitions
     __CONFIG _CP_OFF & _WDT_OFF & _BODEN_ON & _PWRTE_ON & _HS_OSC & _WRT_ENABLE_ON & _CPD_OFF & _LVP_OFF
 
-    #include <lcd.inc>			   ;Import LCD control functions from lcd.asm
+    #include <lcd.inc>			;Import LCD control functions from lcd.asm
+
+;PIN USAGE: PORTD-LCD, PORTB-Keypad, PORTC-Motor
+;C0-1a, C1-1b, C2-2a, C3-2b
 
 ;Un-initialised data in RAM and shared across all RAM banks
 ;res means reserve x bytes of memory
@@ -16,7 +19,7 @@ Table_Counter	res	1
     org     0x0000
     goto    Mainline
 
-    org 0x0004
+    org     0x0004
     ;store working and status reg
 	movwf 	temp_w
 	movf 	STATUS,w
@@ -42,7 +45,30 @@ Table_Counter	res	1
 	temp_w
 	temp_status
     Machine_state
+    Timer0
+    Timer1
+    Motor_Step
 	endc
+
+;table
+MsgStart
+    addwf	PCL,F
+	dt		"1: Start 2: Logs", 0
+MsgLogs
+	addwf	PCL,F
+	dt		"3: Motor", 0
+MsgOP
+    addwf	PCL,F
+	dt		"U Pressed Start", 0
+MsgMotor
+    addwf	PCL,F
+	dt		"Run Dat Motor", 0
+MsgLog
+    addwf	PCL,F
+	dt		"Here be the logs", 0
+MsgRet
+    addwf	PCL,F
+	dt		"1: Return", 0
 
 ;Display Macro
 Display macro	Message
@@ -62,6 +88,7 @@ loop_
 end_
 	endm
 
+    org     0x300
 ;MAIN
 Mainline
     call    Init            ;call Initial settings
@@ -71,7 +98,8 @@ Mainline
     call    Line2
     Display MsgLogs
 
-goto $  ;Poll MachineState
+ILOOP  ;Poll MachineState
+    goto ILOOP
 
 ;check MachineState to see if go to start or ret
 CheckMachineState
@@ -103,17 +131,66 @@ Motor
     bsf     Machine_state, 3
     call    Clear_LCD
     call    Line1
-    Display MsgOP
+    Display MsgMotor
     call    Line2
     Display MsgRet
+    bsf     STATUS,RP0
+    bsf     INTCON,T0IE
+    bcf     STATUS,RP0
+    bsf     Motor_Step,0
+    call    Step
+    bsf     STATUS,RP0
+    bcf     OPTION_REG,5
+    bcf     STATUS,RP0
     return
-;CCCCCCCCCCCCCCOOOOOOOOOOOOOOODDDDDDDDDDDDDDDEEEEEEEE
 
+;Motor_Step: 0001-Step1, 0010-Step2, 0100-Step3, 1000-Step4
+Step
+    btfsc   Motor_Step,0
+    goto    Step1
+    btfsc   Motor_Step,1
+    goto    Step2
+    btfsc   Motor_Step,2
+    goto    Step3
+    btfsc   Motor_Step,3
+    goto    Step4
+Step1
+    movlw   b'10001001'
+    movwf   PORTC               ;Set moto to first squence
+    clrf    Motor_Step
+    bsf     Motor_Step,1
+    goto    Step_Done
+Step2
+    movlw   b'01000101'
+    movwf   PORTC               ;Set moto to second squence
+    clrf    Motor_Step
+    bsf     Motor_Step,2
+    goto    Step_Done
+Step3
+    movlw   b'00100110'
+    movwf   PORTC               ;Set moto to thrid squence
+    clrf    Motor_Step
+    bsf     Motor_Step,3
+    goto    Step_Done
+Step4
+    movlw   b'00011010'
+    movwf   PORTC               ;Set moto to fourth squence
+    clrf    Motor_Step
+    bsf     Motor_Step,0
+    goto    Step_Done
+Step_Done
+    movlw   H'5'
+    movwf   Timer1              ;Set Timer1 to 5
+    return
 
 ;Return to main menu if 1 is pressed
 MenuRet
     clrf    Machine_state
     bsf     Machine_state, 0
+    bsf     STATUS,RP0
+    bcf     INTCON,T0IE
+    bcf     STATUS,RP0
+    clrf    PORTC
     call    Clear_LCD
     call    Line1
     Display MsgStart
@@ -125,10 +202,11 @@ MenuRet
 Init
     bsf     STATUS,RP0      ;swtich to bank 1
     clrf    TRISD           ;clears TRISD to set PORTD to output
+    clrf    TRISC           ;clears TRICC to output
     movlw   b'11111111'
     movwf   TRISB           ;set PORTB to input
-    clrf    INTCON          ;removes interrupts
     bcf     STATUS,RP0      ;bank0
+    clrf    PORTC           ;clears PORTC
     clrf    Machine_state
     bsf     Machine_state, 0
     return
@@ -156,7 +234,7 @@ Check2
     btfss   Machine_state, 0
     return
     decfsz  H'30', f
-    goto    Check3         ;If not 2, wait until button released
+    goto    Check3          ;If not 2, wait until button released
     goto    Logs            ;If 2, display Logs
 ;Checks if 3 is pressed
 Check3
@@ -165,6 +243,12 @@ Check3
     goto    Motor
 
 ISR_Timer
+    incfsz  Timer0
+    return
+    decfsz  Timer1
+    return
+    call    Step
+    return
 
 ;Switch to second line of LCD
 Line2
@@ -177,21 +261,4 @@ Line1
     call    WR_INS
     return
 
-
-;table
-MsgStart
-    addwf	PCL,F
-	dt		"1: Start 2: Logs", 0
-MsgLogs
-	addwf	PCL,F
-	dt		"3: Motor", 0
-MsgOP
-    addwf	PCL,F
-	dt		"Running...", 0
-MsgLog
-    addwf	PCL,F
-	dt		"Here be the logs", 0
-MsgRet
-    addwf	PCL,F
-	dt		"1: Return", 0
     end
