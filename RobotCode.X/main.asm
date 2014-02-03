@@ -1,6 +1,6 @@
     list p=16f877               ; list directive to define processor
     #include <p16f877.inc>      ; processor specific variable definitions
-    __CONFIG _CP_OFF & _WDT_OFF & _BODEN_ON & _PWRTE_ON & _HS_OSC & _WRT_ENABLE_ON & _CPD_OFF & _LVP_OFF
+    __CONFIG _CP_OFF & _WDT_OFF & _BODEN_OFF & _PWRTE_ON & _HS_OSC & _WRT_ENABLE_ON & _CPD_OFF & _LVP_OFF
 
     #include <lcd.inc>			;Import LCD control functions from lcd.asm
 
@@ -182,7 +182,7 @@ Step4
     bsf     Motor_Step,0
     goto    Step_Done
 Step_Done
-    movlw   H'5'
+    movlw   H'2'
     movwf   Timer1              ;Set Timer1 to 5
     return
 
@@ -224,7 +224,7 @@ ISR_init
 	return
 
 ISR_Key
-	swapf    PORTB,W         ;Puts PORTB7:4 into W3:0
+	swapf   PORTB,W         ;Puts PORTB7:4 into W3:0
     andlw   0x0F            ;W: 0000XXXX
     movwf   H'30'
     incf    H'30',f
